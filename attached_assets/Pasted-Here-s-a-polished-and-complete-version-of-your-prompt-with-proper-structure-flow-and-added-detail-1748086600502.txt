@@ -1,0 +1,217 @@
+Here’s a polished and complete version of your prompt, with proper structure, flow, and added details for clarity, completeness, and technical implementation:
+
+---
+
+### 🚀 Project Prompt: **Build a Complete Flutter Mobile App for Si-link**
+
+---
+
+### 📱 App Name: **Si-link**
+
+**Logo**: A stylized “Si” in neon glow font
+**Tagline**: *“Empowered and Smarter Students, One Service at a Time”*
+
+Platform: Flutter (mobile)/ reactjs for web app and reactive for the cross platform mobile app if replit does not support flutter
+**Backend Options**: Supabase (preferred), Replit Auth, or manual email/password auth
+**Use case**: A mobile platform to connect students and service providers within a university ecosystem
+
+---
+
+### ✅ Features & Requirements
+
+#### 1. 🧑‍💼 User Roles
+
+* **Super Admin**:
+
+  * Can authorize/create other admins
+  * Has full privileges of all other admin roles
+  * Static Credentials:
+
+    * Email: `Jacobsilas007@gmail.com`
+    * Password: `JesusLovesMe777`
+
+* **Admin**:
+
+  * Manage content (shops, jobs, users)
+  * Access analytics dashboard
+
+* **Service Provider**:
+
+  * Create/manage shop or job listings
+  * Chat with students
+
+* **Student**:
+
+  * Register and browse/post jobs
+  * Rate and chat with service providers
+
+---
+
+#### 2. 🚀 Splash Screen
+
+* 3-slide animated PageView
+* Glowing Flutter logo (animated)
+* Neon/street-style aesthetic (use uploaded reference design)
+* Auto-navigation to login screen after 5–10 seconds
+
+---
+
+#### 3. 🔐 Authentication
+
+* Supabase Auth:
+
+  * Google Sign-In
+  * Social logins
+  * Magic link (optional)
+* Manual Email/Password Login
+* Replit Auth or custom manual auth (fallback options)
+
+---
+
+#### 4. 🧩 Core Features
+
+##### Admin Panel
+
+* `admin_dashboard.dart`: Charts (line, bar, pie) for users, messages, payments
+* `manage_users.dart`: Suspend/delete users
+* `manage_content.dart`: Moderate shops/jobs
+* Fully responsive for all screen sizes
+
+##### Real-Time Chat
+
+* Firebase Firestore or Supabase Realtime
+* Chat UI styled with bubble layout, avatar support
+* Between Students and Providers
+
+##### Main Dashboard
+
+* Glowing neon card menu buttons
+* Navigate to:
+
+  * Shops
+  * Jobs
+  * Categories
+  * Chats
+  * Ratings
+  * Analytics
+  * Settings
+* Real-time toast alerts
+
+##### Shops & Jobs Pages
+
+* Filter by category: Hair, Food, Delivery, Tech Help, etc.
+* Post new jobs or shop listings
+* 1–5 Star rating with comment system
+* Real-time updates
+
+---
+
+#### 5. 💳 Payment Integration
+
+* **Gateway**: Flutterwave
+
+* Features:
+
+  * Virtual account generation (with KYC using NIN & BVN)
+  * Track transaction history
+  * Generate digital receipt
+  * Admin sees logs of all payments
+
+* **Credentials (Test Mode)**:
+
+  * `PUBLIC_KEY`: FLWPUBK\_TEST-185cf8aac08dfc1731b3d41f11e4f783-X
+  * `SECRET_KEY`: FLWSECK\_TEST-7ac0d66e9977ea915461ca59920a5c16-X
+  * `ENCRYPTION_KEY`: FLWSECK\_TEST4821e60b4f8c
+  * `MERCHANT_ID`: 100689210
+
+---
+
+#### 6. 🎨 Design / UI
+
+* Neon, glowing, futuristic theme (based on uploaded images)
+* Slide transitions, modal animations, gradient buttons
+* Responsive using:
+
+  * `LayoutBuilder`, `MediaQuery`, `Flexible`, `Wrap`
+
+---
+
+#### 7. 💡 Advanced UX
+
+* Light/Dark Mode toggle
+* Supabase push notifications
+* Toast alerts for success, error, and warnings
+* Supabase performance monitoring
+
+---
+
+#### 8. 🧱 Data Models
+
+```dart
+// User
+id, name, email, role (admin/student/provider), profileImage, createdAt
+
+// Shop
+id, ownerId, title, description, category, rating, createdAt
+
+// Job
+id, posterId, description, category, deadline, createdAt
+
+// ChatMessage
+id, senderId, receiverId, timestamp, message, imageUrl
+
+// Payment
+id, payerId, receiverId, amount, status, date, bvn, nin
+```
+
+---
+
+### 📦 Deliverables
+
+* Full Flutter source code (clean, organized, fully commented)
+* Supabase configuration (`url`, `anon key`, table definitions)
+* Firebase or Supabase Realtime setup for chat
+* Payment gateway integration with test keys
+* Complete Auth logic for all roles
+* Fully functional screens:
+
+  * Admin Dashboard
+  * Shops/Jobs/Categories
+  * Chats
+  * Ratings & Analytics
+  * Login/Register/Splash
+* Assets folder:
+
+  * Custom icons
+  * Glowing splash images
+* 100% Responsive layout for all devices
+
+---
+
+### 🧪 Testing Details
+
+* Supabase DB credentials:
+
+  * Password: `yRh+LEUJP9SxU4h`
+  * DB URL: `postgresql://postgres:[YOUR-PASSWORD]@db.vyjpdfljjouabvnpgruf.supabase.co:5432/postgres`
+  * Bucket: `jacob-tech-db-bucket`
+
+* Flutterwave Test Keys:
+
+  * **Public**: `FLWPUBK_TEST-185cf8aac08dfc1731b3d41f11e4f783-X`
+  * **Secret**: `FLWSECK_TEST-7ac0d66e9977ea915461ca59920a5c16-X`
+  * **Encryption**: `FLWSECK_TEST4821e60b4f8c`
+  * **Merchant ID**: `100689210`
+
+---
+
+### 🚀 Next Steps
+
+Would you like me to generate:
+
+* ✅ Supabase SQL schema?
+* ✅ Flutter project structure with screens and code?
+* ✅ Authentication logic and login UI?
+* ✅ Firebase chat or Supabase real-time logic?
+
+Let me know where you’d like to start — I can build it all for you.
