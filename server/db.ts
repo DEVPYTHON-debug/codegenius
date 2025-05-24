@@ -6,7 +6,7 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set");
 }
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:yRh+LEUJP9SxU4h@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
 
 // Disable prefetch as it is not supported for "Transaction" pool mode
 export const client = postgres(connectionString, { prepare: false });
