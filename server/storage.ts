@@ -343,4 +343,267 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // User operations (IMPORTANT - mandatory for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({
+        ...userData,
+        role: userData.role || "student",
+        isActive: userData.isActive ?? true,
+        email: userData.email || null,
+        firstName: userData.firstName || null,
+        lastName: userData.lastName || null,
+        profileImageUrl: userData.profileImageUrl || null,
+      })
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  async getUsersByRole(role: string): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, role as any));
+  }
+
+  async updateUserStatus(id: string, isActive: boolean): Promise<void> {
+    await db.update(users).set({ isActive }).where(eq(users.id, id));
+  }
+
+  // Shop operations
+  async getShops(category?: string): Promise<Shop[]> {
+    if (category) {
+      return await db.select().from(shops).where(eq(shops.category, category));
+    }
+    return await db.select().from(shops);
+  }
+
+  async getShop(id: number): Promise<Shop | undefined> {
+    const [shop] = await db.select().from(shops).where(eq(shops.id, id));
+    return shop;
+  }
+
+  async createShop(shopData: InsertShop): Promise<Shop> {
+    const [shop] = await db
+      .insert(shops)
+      .values({
+        ...shopData,
+        isActive: shopData.isActive ?? true,
+        description: shopData.description || null,
+        rating: shopData.rating || null,
+      })
+      .returning();
+    return shop;
+  }
+
+  async updateShop(id: number, shopData: Partial<InsertShop>): Promise<Shop> {
+    const [shop] = await db
+      .update(shops)
+      .set(shopData)
+      .where(eq(shops.id, id))
+      .returning();
+    return shop;
+  }
+
+  async deleteShop(id: number): Promise<void> {
+    await db.delete(shops).where(eq(shops.id, id));
+  }
+
+  async getShopsByOwner(ownerId: string): Promise<Shop[]> {
+    return await db.select().from(shops).where(eq(shops.ownerId, ownerId));
+  }
+
+  // Job operations
+  async getJobs(category?: string): Promise<Job[]> {
+    if (category) {
+      return await db.select().from(jobs).where(eq(jobs.category, category));
+    }
+    return await db.select().from(jobs);
+  }
+
+  async getJob(id: number): Promise<Job | undefined> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    return job;
+  }
+
+  async createJob(jobData: InsertJob): Promise<Job> {
+    const [job] = await db
+      .insert(jobs)
+      .values({
+        ...jobData,
+        description: jobData.description || null,
+        status: jobData.status || "open",
+        budget: jobData.budget || null,
+        deadline: jobData.deadline || null,
+      })
+      .returning();
+    return job;
+  }
+
+  async updateJob(id: number, jobData: Partial<InsertJob>): Promise<Job> {
+    const [job] = await db
+      .update(jobs)
+      .set(jobData)
+      .where(eq(jobs.id, id))
+      .returning();
+    return job;
+  }
+
+  async deleteJob(id: number): Promise<void> {
+    await db.delete(jobs).where(eq(jobs.id, id));
+  }
+
+  async getJobsByPoster(posterId: string): Promise<Job[]> {
+    return await db.select().from(jobs).where(eq(jobs.posterId, posterId));
+  }
+
+  // Chat operations
+  async getChatMessages(senderId: string, receiverId: string): Promise<ChatMessage[]> {
+    return await db
+      .select()
+      .from(chatMessages)
+      .where(
+        or(
+          and(eq(chatMessages.senderId, senderId), eq(chatMessages.receiverId, receiverId)),
+          and(eq(chatMessages.senderId, receiverId), eq(chatMessages.receiverId, senderId))
+        )
+      )
+      .orderBy(chatMessages.timestamp);
+  }
+
+  async createChatMessage(messageData: InsertChatMessage): Promise<ChatMessage> {
+    const [message] = await db
+      .insert(chatMessages)
+      .values({
+        ...messageData,
+        imageUrl: messageData.imageUrl || null,
+        isRead: false,
+      })
+      .returning();
+    return message;
+  }
+
+  async markMessagesAsRead(senderId: string, receiverId: string): Promise<void> {
+    await db
+      .update(chatMessages)
+      .set({ isRead: true })
+      .where(
+        and(
+          eq(chatMessages.senderId, senderId),
+          eq(chatMessages.receiverId, receiverId)
+        )
+      );
+  }
+
+  async getRecentChats(userId: string): Promise<any[]> {
+    // This would require a more complex query to get recent conversations
+    return [];
+  }
+
+  // Payment operations
+  async getPayments(userId?: string): Promise<Payment[]> {
+    if (userId) {
+      return await db
+        .select()
+        .from(payments)
+        .where(or(eq(payments.payerId, userId), eq(payments.receiverId, userId)));
+    }
+    return await db.select().from(payments);
+  }
+
+  async getPayment(id: number): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(eq(payments.id, id));
+    return payment;
+  }
+
+  async createPayment(paymentData: InsertPayment): Promise<Payment> {
+    const [payment] = await db
+      .insert(payments)
+      .values({
+        ...paymentData,
+        description: paymentData.description || null,
+        status: paymentData.status || "pending",
+        receiverId: paymentData.receiverId || null,
+        currency: paymentData.currency || "NGN",
+        transactionRef: paymentData.transactionRef || null,
+        flutterwaveRef: paymentData.flutterwaveRef || null,
+      })
+      .returning();
+    return payment;
+  }
+
+  async updatePayment(id: number, paymentData: Partial<InsertPayment>): Promise<Payment> {
+    const [payment] = await db
+      .update(payments)
+      .set(paymentData)
+      .where(eq(payments.id, id))
+      .returning();
+    return payment;
+  }
+
+  // Rating operations
+  async getRatings(ratedId: string): Promise<Rating[]> {
+    return await db.select().from(ratings).where(eq(ratings.ratedId, ratedId));
+  }
+
+  async createRating(ratingData: InsertRating): Promise<Rating> {
+    const [rating] = await db
+      .insert(ratings)
+      .values({
+        ...ratingData,
+        shopId: ratingData.shopId || null,
+        comment: ratingData.comment || null,
+      })
+      .returning();
+    return rating;
+  }
+
+  async getAverageRating(ratedId: string): Promise<number> {
+    const result = await db
+      .select({ avg: sql<number>`AVG(${ratings.rating})` })
+      .from(ratings)
+      .where(eq(ratings.ratedId, ratedId));
+    return result[0]?.avg || 0;
+  }
+
+  // Virtual Account operations
+  async getVirtualAccount(userId: string): Promise<VirtualAccount | undefined> {
+    const [account] = await db
+      .select()
+      .from(virtualAccounts)
+      .where(eq(virtualAccounts.userId, userId));
+    return account;
+  }
+
+  async createVirtualAccount(accountData: InsertVirtualAccount): Promise<VirtualAccount> {
+    const [account] = await db
+      .insert(virtualAccounts)
+      .values({
+        ...accountData,
+        isActive: accountData.isActive ?? true,
+        balance: accountData.balance || "0.00",
+      })
+      .returning();
+    return account;
+  }
+
+  async updateVirtualAccountBalance(userId: string, amount: string): Promise<void> {
+    await db
+      .update(virtualAccounts)
+      .set({ balance: amount })
+      .where(eq(virtualAccounts.userId, userId));
+  }
+}
+
+export const storage = new DatabaseStorage();
