@@ -50,17 +50,23 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
-  // Check if this is the super admin
-  const isSupperAdmin = claims["email"] === "Jacobsilas007@gmail.com";
-  
-  await storage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-    role: isSupperAdmin ? "super_admin" : "student", // Default to student role
-  });
+  try {
+    // Check if this is the super admin
+    const isSupperAdmin = claims["email"] === "Jacobsilas007@gmail.com";
+    
+    await storage.upsertUser({
+      id: claims["sub"],
+      email: claims["email"] || null,
+      firstName: claims["first_name"] || null,
+      lastName: claims["last_name"] || null,
+      profileImageUrl: claims["profile_image_url"] || null,
+      role: isSupperAdmin ? "super_admin" : "student", // Default to student role
+      isActive: true,
+    });
+  } catch (error) {
+    console.error('Error upserting user:', error);
+    throw error;
+  }
 }
 
 export async function setupAuth(app: Express) {
@@ -109,7 +115,13 @@ export async function setupAuth(app: Express) {
     passport.authenticate(`replitauth:${req.hostname}`, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
-    })(req, res, next);
+    })(req, res, (err) => {
+      if (err) {
+        console.error('Auth callback error:', err);
+        return res.redirect("/api/login");
+      }
+      next();
+    });
   });
 
   app.get("/api/logout", (req, res) => {
