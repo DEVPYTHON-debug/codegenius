@@ -21,7 +21,8 @@ import {
   type VirtualAccount,
   type InsertVirtualAccount,
 } from "@shared/schema";
-import { eq, desc, and, or, like } from "drizzle-orm";
+import { eq, desc, and, or, like, sql } from "drizzle-orm";
+import { db } from "./db";
 
 // Interface for storage operations
 export interface IStorage {
