@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Si-Link Student Service Platform
 
 A comprehensive platform connecting students and service providers within university ecosystems.
@@ -163,3 +164,7 @@ MIT License - see LICENSE file for details
 ## Support
 
 For support and questions, contact the development team.
+=======
+# codegenius
+web app silink
+>>>>>>> a23ff9c62f85a2dd821f7537c12abb354d825b0e
