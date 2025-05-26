@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { useLocation } from "wouter";
 
 export default function Landing() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -14,8 +16,9 @@ export default function Landing() {
     role: 'student'
   });
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     // For super admin, check static credentials
     if (formData.email === 'Jacobsilas007@gmail.com' && formData.password === 'JesusLovesMe777' && formData.role === 'super_admin') {
       toast({
@@ -28,12 +31,59 @@ export default function Landing() {
       return;
     }
 
-    // Regular login flow
-    window.location.href = '/api/login';
+    const { error } = await supabase.auth.signInWithPassword({ email: formData.email, password: formData.password });
+    if (error) {
+      toast({
+        title: "Login Error",
+        description: "Invalid email or password.",
+        variant: "destructive",
+      });
+    } else {
+      // Get the access token
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token;
+
+      if (accessToken) {
+        // Fetch user data from backend with token
+        const res = await fetch("/api/auth/user", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (res.ok) {
+          // User is authenticated, redirect or update UI
+          window.location.href = '/dashboard'; // or wherever you want
+        } else {
+          toast({
+            title: "Auth Error",
+            description: "Could not fetch user data.",
+            variant: "destructive",
+          });
+        }
+      }
+    }
   };
 
-  const handleGoogleLogin = () => {
-    window.location.href = '/api/login';
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({ provider: "google" });
+    if (error) {
+      toast({
+        title: "Google Login Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFacebookLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({ provider: "facebook" });
+    if (error) {
+      toast({
+        title: "Facebook Login Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -99,12 +149,20 @@ export default function Landing() {
               
               {/* Social Login */}
               <div className="space-y-3">
-                <Button 
+                <Button
                   onClick={handleGoogleLogin}
                   variant="outline"
                   className="w-full py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center"
                 >
                   <i className="fab fa-google mr-2 text-red-500"></i>Continue with Google
+                </Button>
+                
+                <Button
+                  onClick={handleFacebookLogin}
+                  variant="outline"
+                  className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center mt-2"
+                >
+                  <i className="fab fa-facebook mr-2"></i>Continue with Facebook
                 </Button>
               </div>
               
@@ -112,7 +170,7 @@ export default function Landing() {
               <p className="text-center text-gray-400">
                 Don't have an account? 
                 <button 
-                  onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+                  onClick={() => setLocation("/register")}
                   className="text-neon-cyan hover:text-neon-pink transition-colors ml-1"
                 >
                   Sign up

@@ -1,50 +1,63 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertShopSchema, insertJobSchema, insertChatMessageSchema, insertPaymentSchema, insertRatingSchema } from "@shared/schema";
 import { z } from "zod";
+import { supabaseAuth } from "./supabaseAuth";
+import { supabase } from "./supabase"; // <-- Make sure this file exists and exports the client
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // User routes
+  app.get('/api/auth/users', async (req, res) => {
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  });
 
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', supabaseAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', req.user.id)
+        .single();
+      if (error) return res.status(500).json({ message: error.message });
       res.json(user);
     } catch (error) {
-      console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
 
-  // User routes
-  app.get('/api/users', isAuthenticated, async (req: any, res) => {
+  app.get('/api/users', supabaseAuth, async (req: any, res) => {
     try {
       const { role } = req.query;
-      const users = role ? await storage.getUsersByRole(role as string) : [];
-      res.json(users);
+      let query = supabase.from('users').select('*');
+      if (role) query = query.eq('role', role);
+      const { data, error } = await query;
+      if (error) return res.status(500).json({ message: error.message });
+      res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch users" });
     }
   });
 
-  app.patch('/api/users/:id/status', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/users/:id/status', supabaseAuth, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { isActive } = req.body;
-      
-      // Only admins can modify user status
-      const currentUser = await storage.getUser(req.user.claims.sub);
-      if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role!)) {
+      const { data: currentUser } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', req.user.id)
+        .single();
+      if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
         return res.status(403).json({ message: "Insufficient permissions" });
       }
-
-      await storage.updateUserStatus(id, isActive);
+      const { error } = await supabase
+        .from('users')
+        .update({ isActive })
+        .eq('id', id);
+      if (error) return res.status(500).json({ message: error.message });
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to update user status" });
@@ -53,36 +66,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Shop routes
   app.get('/api/shops', async (req, res) => {
-    try {
-      const { category } = req.query;
-      const shops = await storage.getShops(category as string);
-      res.json(shops);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch shops" });
-    }
+    const { category } = req.query;
+    let query = supabase.from('shops').select('*');
+    if (category) query = query.eq('category', category);
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
   });
 
   app.get('/api/shops/:id', async (req, res) => {
-    try {
-      const { id } = req.params;
-      const shop = await storage.getShop(parseInt(id));
-      if (!shop) {
-        return res.status(404).json({ message: "Shop not found" });
-      }
-      res.json(shop);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch shop" });
-    }
+    const { id } = req.params;
+    const { data, error } = await supabase.from('shops').select('*').eq('id', id).single();
+    if (error) return res.status(500).json({ message: error.message });
+    if (!data) return res.status(404).json({ message: "Shop not found" });
+    res.json(data);
   });
 
-  app.post('/api/shops', isAuthenticated, async (req: any, res) => {
+  app.post('/api/shops', supabaseAuth, async (req: any, res) => {
     try {
       const shopData = insertShopSchema.parse({
         ...req.body,
-        ownerId: req.user.claims.sub,
+        ownerId: req.user.id,
       });
-      const shop = await storage.createShop(shopData);
-      res.status(201).json(shop);
+      const { data, error } = await supabase.from('shops').insert([shopData]).select().single();
+      if (error) return res.status(500).json({ message: error.message });
+      res.status(201).json(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid shop data", errors: error.errors });
@@ -91,10 +99,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/my-shops', isAuthenticated, async (req: any, res) => {
+  app.get('/api/my-shops', supabaseAuth, async (req: any, res) => {
     try {
-      const shops = await storage.getShopsByOwner(req.user.claims.sub);
-      res.json(shops);
+      const { data, error } = await supabase.from('shops').select('*').eq('ownerId', req.user.id);
+      if (error) return res.status(500).json({ message: error.message });
+      res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch your shops" });
     }
@@ -102,23 +111,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Job routes
   app.get('/api/jobs', async (req, res) => {
-    try {
-      const { category } = req.query;
-      const jobs = await storage.getJobs(category as string);
-      res.json(jobs);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch jobs" });
-    }
+    const { category } = req.query;
+    let query = supabase.from('jobs').select('*');
+    if (category) query = query.eq('category', category);
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
   });
 
-  app.post('/api/jobs', isAuthenticated, async (req: any, res) => {
+  app.post('/api/jobs', supabaseAuth, async (req: any, res) => {
     try {
       const jobData = insertJobSchema.parse({
         ...req.body,
-        posterId: req.user.claims.sub,
+        posterId: req.user.id,
       });
-      const job = await storage.createJob(jobData);
-      res.status(201).json(job);
+      const { data, error } = await supabase.from('jobs').insert([jobData]).select().single();
+      if (error) return res.status(500).json({ message: error.message });
+      res.status(201).json(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid job data", errors: error.errors });
@@ -127,49 +136,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/my-jobs', isAuthenticated, async (req: any, res) => {
+  app.get('/api/my-jobs', supabaseAuth, async (req: any, res) => {
     try {
-      const jobs = await storage.getJobsByPoster(req.user.claims.sub);
-      res.json(jobs);
+      const { data, error } = await supabase.from('jobs').select('*').eq('posterId', req.user.id);
+      if (error) return res.status(500).json({ message: error.message });
+      res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch your jobs" });
     }
   });
 
   // Chat routes
-  app.get('/api/chats', isAuthenticated, async (req: any, res) => {
-    try {
-      const chats = await storage.getRecentChats(req.user.claims.sub);
-      res.json(chats);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch chats" });
-    }
-  });
-
-  app.get('/api/chats/:userId/messages', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chats/:userId/messages', supabaseAuth, async (req: any, res) => {
     try {
       const { userId } = req.params;
-      const messages = await storage.getChatMessages(req.user.claims.sub, userId);
-      res.json(messages);
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .or(`and(senderId.eq.${req.user.id},receiverId.eq.${userId}),and(senderId.eq.${userId},receiverId.eq.${req.user.id})`)
+        .order('timestamp', { ascending: true });
+      if (error) return res.status(500).json({ message: error.message });
+      res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch messages" });
     }
   });
 
-  app.post('/api/chats/:userId/messages', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chats/:userId/messages', supabaseAuth, async (req: any, res) => {
     try {
       const { userId } = req.params;
       const messageData = insertChatMessageSchema.parse({
         ...req.body,
-        senderId: req.user.claims.sub,
+        senderId: req.user.id,
         receiverId: userId,
       });
-      const message = await storage.createChatMessage(messageData);
-      
-      // Broadcast to WebSocket clients
-      broadcastMessage(message);
-      
-      res.status(201).json(message);
+      const { data, error } = await supabase.from('chat_messages').insert([messageData]).select().single();
+      if (error) return res.status(500).json({ message: error.message });
+      broadcastMessage(data); // keep your websocket logic
+      res.status(201).json(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid message data", errors: error.errors });
@@ -179,23 +183,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Payment routes
-  app.get('/api/payments', isAuthenticated, async (req: any, res) => {
+  app.get('/api/payments', supabaseAuth, async (req: any, res) => {
     try {
-      const payments = await storage.getPayments(req.user.claims.sub);
-      res.json(payments);
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .or(`payerId.eq.${req.user.id},receiverId.eq.${req.user.id}`);
+      if (error) return res.status(500).json({ message: error.message });
+      res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch payments" });
     }
   });
 
-  app.post('/api/payments', isAuthenticated, async (req: any, res) => {
+  app.post('/api/payments', supabaseAuth, async (req: any, res) => {
     try {
       const paymentData = insertPaymentSchema.parse({
         ...req.body,
-        payerId: req.user.claims.sub,
+        payerId: req.user.id,
       });
-      const payment = await storage.createPayment(paymentData);
-      res.status(201).json(payment);
+      const { data, error } = await supabase.from('payments').insert([paymentData]).select().single();
+      if (error) return res.status(500).json({ message: error.message });
+      res.status(201).json(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid payment data", errors: error.errors });
@@ -207,21 +216,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Flutterwave webhook
   app.post('/api/flutterwave/webhook', async (req, res) => {
     try {
-      const { status, tx_ref, amount, currency } = req.body;
-      
+      const { status, tx_ref, flw_ref } = req.body;
       if (status === 'successful') {
-        // Find and update payment
-        const payments = await storage.getPayments();
-        const payment = payments.find(p => p.transactionRef === tx_ref);
-        
+        // Find and update payment in Supabase
+        const { data: payment, error: findError } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('transactionRef', tx_ref)
+          .single();
+        if (findError) return res.status(500).json({ message: findError.message });
         if (payment) {
-          await storage.updatePayment(payment.id, {
-            status: 'completed',
-            flutterwaveRef: req.body.flw_ref,
-          });
+          const { error: updateError } = await supabase
+            .from('payments')
+            .update({ status: 'completed', flutterwaveRef: flw_ref })
+            .eq('id', payment.id);
+          if (updateError) return res.status(500).json({ message: updateError.message });
         }
       }
-      
       res.status(200).json({ status: 'success' });
     } catch (error) {
       res.status(500).json({ message: "Webhook processing failed" });
@@ -229,23 +240,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Virtual Account routes
-  app.get('/api/virtual-account', isAuthenticated, async (req: any, res) => {
+  app.get('/api/virtual-account', supabaseAuth, async (req: any, res) => {
     try {
-      let account = await storage.getVirtualAccount(req.user.claims.sub);
-      
+      let { data: account, error } = await supabase
+        .from('virtual_accounts')
+        .select('*')
+        .eq('userId', req.user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        return res.status(500).json({ message: error.message });
+      }
+
       if (!account) {
-        // Create virtual account
-        const user = await storage.getUser(req.user.claims.sub);
-        account = await storage.createVirtualAccount({
-          userId: req.user.claims.sub,
+        const user = { firstName: '', lastName: '' };
+        const insertData = {
+          userId: req.user.id,
           accountNumber: `${Math.floor(Math.random() * 9000000000) + 1000000000}`,
           bankName: "Wema Bank",
           accountName: `SILINK/${user?.firstName?.toUpperCase()} ${user?.lastName?.toUpperCase()}`,
           balance: "0.00",
           isActive: true,
-        });
+        };
+        const { data: created, error: createError } = await supabase
+          .from('virtual_accounts')
+          .insert([insertData])
+          .select()
+          .single();
+        if (createError) return res.status(500).json({ message: createError.message });
+        account = created;
       }
-      
+
       res.json(account);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch virtual account" });
@@ -256,22 +281,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/ratings/:userId', async (req, res) => {
     try {
       const { userId } = req.params;
-      const ratings = await storage.getRatings(userId);
-      const average = await storage.getAverageRating(userId);
-      res.json({ ratings, average });
+      const { data, error } = await supabase.from('ratings').select('*').eq('ratedId', userId);
+      if (error) return res.status(500).json({ message: error.message });
+      const avg = data && data.length
+        ? data.reduce((sum, r) => sum + r.rating, 0) / data.length
+        : 0;
+      res.json({ ratings: data, average: avg });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch ratings" });
     }
   });
 
-  app.post('/api/ratings', isAuthenticated, async (req: any, res) => {
+  app.post('/api/ratings', supabaseAuth, async (req: any, res) => {
     try {
       const ratingData = insertRatingSchema.parse({
         ...req.body,
-        raterId: req.user.claims.sub,
+        raterId: req.user.id,
       });
-      const rating = await storage.createRating(ratingData);
-      res.status(201).json(rating);
+      const { data, error } = await supabase.from('ratings').insert([ratingData]).select().single();
+      if (error) return res.status(500).json({ message: error.message });
+      res.status(201).json(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid rating data", errors: error.errors });
@@ -281,28 +310,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Analytics routes (admin only)
-  app.get('/api/analytics', isAuthenticated, async (req: any, res) => {
+  app.get('/api/analytics', supabaseAuth, async (req: any, res) => {
     try {
-      const currentUser = await storage.getUser(req.user.claims.sub);
-      if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role!)) {
+      const { data: currentUser, error: userError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', req.user.id)
+        .single();
+      if (userError) return res.status(500).json({ message: userError.message });
+      if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
         return res.status(403).json({ message: "Insufficient permissions" });
       }
 
-      const users = await storage.getUsersByRole('student');
-      const providers = await storage.getUsersByRole('provider');
-      const shops = await storage.getShops();
-      const jobs = await storage.getJobs();
-      const payments = await storage.getPayments();
+      const { data: users } = await supabase.from('users').select('*').eq('role', 'student');
+      const { data: providers } = await supabase.from('users').select('*').eq('role', 'provider');
+      const { data: shops } = await supabase.from('shops').select('*');
+      const { data: jobs } = await supabase.from('jobs').select('*');
+      const { data: payments } = await supabase.from('payments').select('*');
 
       const analytics = {
-        totalUsers: users.length + providers.length,
-        totalShops: shops.length,
-        totalJobs: jobs.length,
-        totalRevenue: payments
+        totalUsers: (users?.length || 0) + (providers?.length || 0),
+        totalShops: shops?.length || 0,
+        totalJobs: jobs?.length || 0,
+        totalRevenue: (payments || [])
           .filter(p => p.status === 'completed')
           .reduce((sum, p) => sum + parseFloat(p.amount), 0),
-        userGrowth: users.length * 0.12, // Mock 12% growth
-        shopGrowth: shops.length * 0.08, // Mock 8% growth
+        userGrowth: (users?.length || 0) * 0.12,
+        shopGrowth: (shops?.length || 0) * 0.08,
       };
 
       res.json(analytics);
@@ -323,7 +357,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
-        
         if (message.type === 'auth') {
           userId = message.userId;
           clients.set(userId, ws);
